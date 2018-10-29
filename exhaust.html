@@ -1,0 +1,159 @@
+<!DOCTYPE HTML>
+<html> <head>
+<meta charset="UTF8" />
+<title>Handling Javascript Exhaustion</title>
+</head>
+
+<body>
+<h1>Handling Javascript Exhaustion</h1>
+
+<blockquote>
+<p>ISC License</p>
+
+<p>Copyright © 2018, Michael FIG <a
+href="mailto:michael+caja@fig.org">&lt;michael+caja@fig.org&gt;</a></p>
+
+<p>Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.</p>
+
+<p>THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.</p>
+</blockquote>
+
+<p>The following buttons trigger deep recursion and an infinite loop.
+Both of these conditions should rapidly be detected by the
+(eventually, automatically-injected) calls to api.throwIfExpired() and
+trigger an expected global error event.</p>
+
+<script type="text/javascript">
+// Initialized by the "host" code in the next block.
+var api = {};
+
+//////////////////////////////////////////////////////////////////////
+// This block is sample transformed client code.
+// api.throwIfExpired would be inserted by the compiler.
+function foo(a) { api.throwIfExpired();
+  //console.log('have a', a);
+  var b = foo(a + 1);
+  return b * 2;
+}
+
+
+function exhaustStack() { api.throwIfExpired();
+  try {
+    return foo(1) + 3;
+  }
+  catch (e) { api.throwIfExpired(e);
+    console.log('exhaustStack caught', e); 
+    alert('Unexpected: I survived stack exhaustion!  Check console for the error we caught.');
+  }
+  alert('Unexpected: This should never execute!');
+}
+
+function loopForever() {
+  var a = 0;
+  try {
+    while (true) { api.throwIfExpired();
+      a = a + 1;
+    }
+  }
+  catch (e) { api.throwIfExpired(e);
+    console.log('loopForever caught', e);
+    alert('Unexpected: I survived an infinite loop!  Check console for the error we caught.');
+  }
+  alert('Unexpected: This should never execute!');
+  return a;
+}
+</script>
+
+<p>
+<button onclick="exhaustStack()">Exhaust stack!</button>
+<button onclick="loopForever()">Loop forever!</button>
+</p>
+
+<p>If the code does anything except display an "As expected..." alert
+box, that is a problem with the framework, probably the browser
+integration.  Please check the Javascript console and report it to me.</p>
+
+<script type="text/javascript">
+// The rest of this file is host implementation code.
+
+(function init(expiry, duration) {
+  var dead, deadline;
+
+  function liveLonger() {
+    deadline = Date.now() + expiry;
+  };
+
+  // TODO: In production, track this interval along with
+  // the others used in client code so that we can cancel
+  // the timers when we unload the client.
+  setInterval(liveLonger, duration);
+  liveLonger();
+
+  function reset() {
+    // Once we got this far, we're no longer dead (stack unwound). 
+    // TODO: Reset any other client state, as necessary.
+    dead = undefined;
+  }
+
+  function uncaughtError(error, msg) {
+    console.log(error);
+    if (dead && error === dead) {
+      alert('As expected, we got an uncaught error: ' + error.message);
+      reset();
+    }
+    else if (dead && error === null) {
+      alert('Unexpected: Cross-domain error sanitization seems to have happened!');
+    }
+    else {
+      alert('We got an unexpected uncaught error! (' + msg + ')');
+    }
+
+    return false;
+  };
+
+  // FIXME: For this to work, we need to prevent client code from
+  // calling onerror directly.
+  window.onerror = function legacyError(message, file, line, col, error) {
+    return uncaughtError(error, message);
+  };
+
+  api.throwIfExpired = function throwIfExpired(e) {
+    // Fast path: keep throwing if we're already dead.
+    if (dead) {
+      throw dead;
+    }
+    try {
+      if (window.InternalError && e instanceof InternalError) {
+	// Firefox.
+	throw e;
+      }
+      else if (e instanceof RangeError && e.message.match(/call stack size exceeded/)) {
+	// Chrome / Safari.
+       throw e;
+      }
+      else if (Date.now() > deadline) {
+	throw Error('Deadline expired; mitigating freeze of ' + expiry + 'ms');
+      }
+    }
+    catch (e) {
+      dead = e;
+    }
+    if (dead) {
+      throw dead;
+    }
+  };
+})(1000, 200);
+</script>
+
+<hr>
+<address></address>
+<!-- hhmts start -->Last modified: Sun Oct 28 18:44:11 CST 2018 <!-- hhmts end -->
+</body> </html>
