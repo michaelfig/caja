@@ -1,6 +1,6 @@
 <!DOCTYPE HTML>
 <html> <head>
-<meta charset="UTF8" />
+<meta charset="UTF-8" />
 <title>Handling Javascript Exhaustion</title>
 </head>
 
@@ -131,16 +131,24 @@ integration.  Please check the Javascript console and report it to me.</p>
       throw dead;
     }
     try {
-      if (window.InternalError && e instanceof InternalError) {
-	// Firefox.
-	throw e;
+      if (e) {
+        if (window.InternalError && e instanceof InternalError) {
+	  // Firefox.
+	  throw e;
+	}
+	else if (e instanceof RangeError && e.message.match(/call stack size exceeded/i)) {
+	  // Chrome / Safari.
+	  throw e;
+	}
+	else if (e instanceof Error && e.message.match(/out of stack/i)) {
+	  // Edge / Internet Explorer.
+	  throw e;
+	}
       }
-      else if (e instanceof RangeError && e.message.match(/call stack size exceeded/)) {
-	// Chrome / Safari.
-       throw e;
-      }
-      else if (Date.now() > deadline) {
-	throw Error('Deadline expired; mitigating freeze of ' + expiry + 'ms');
+
+      // Check timeout. 
+      if (Date.now() > deadline) {
+        throw Error('Deadline expired; mitigating freeze of ' + expiry + 'ms'); 
       }
     }
     catch (e) {
@@ -155,5 +163,5 @@ integration.  Please check the Javascript console and report it to me.</p>
 
 <hr>
 <address></address>
-<!-- hhmts start -->Last modified: Sun Oct 28 18:44:11 CST 2018 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Tue Oct 30 11:02:36 CST 2018 <!-- hhmts end -->
 </body> </html>
