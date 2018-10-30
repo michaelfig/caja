@@ -142,7 +142,7 @@ integration.  Please check the Javascript console and report it to me.</p>
 	}
 	else if (e instanceof Error && e.message.match(/out of stack/i)) {
 	  // Edge / Internet Explorer.
-	  throw e;
+	  throw Error('Out of stack space');
 	}
       }
 
@@ -163,5 +163,5 @@ integration.  Please check the Javascript console and report it to me.</p>
 
 <hr>
 <address></address>
-<!-- hhmts start -->Last modified: Tue Oct 30 11:02:36 CST 2018 <!-- hhmts end -->
+<!-- hhmts start -->Last modified: Tue Oct 30 11:14:30 CST 2018 <!-- hhmts end -->
 </body> </html>
